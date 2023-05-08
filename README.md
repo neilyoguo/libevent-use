@@ -18,3 +18,12 @@ configure: error: openssl is a must but can not be found. You should add the dir
 |  ----  | ----  |
 | libevent-2.0.22-stable.tar.gz  | OpenSSL 1.0.2k-fips  26 Jan 2017 |
 | libevent-2.1.12-stable.tar.gz  | OpenSSL 3.0.0 7 sep 2021 (Library: OpenSSL 3.0.0 7 sep 2021) |
+
+安装
+```
+tar zxvf libevent-2.0.22-stable.tar.gz
+cd libevent-2.0.22-stable
+#设置安装路径 不加--prefix=/usr，默认安装目录在/usr/local/lib
+./configure --prefix=/usr
+make && make install
+```
