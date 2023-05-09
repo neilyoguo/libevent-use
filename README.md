@@ -37,6 +37,48 @@ make && make install
 
 ```
 ```
+
+struct event {
+	TAILQ_ENTRY(event) ev_active_next;
+	TAILQ_ENTRY(event) ev_next;
+	/* for managing timeouts */
+	union {
+		TAILQ_ENTRY(event) ev_next_with_common_timeout;
+		int min_heap_idx;
+	} ev_timeout_pos;
+	evutil_socket_t ev_fd; //事件关联的文件描述符
+
+	struct event_base *ev_base;  
+
+	union {
+		/* used for io events */
+		struct {
+			TAILQ_ENTRY(event) ev_io_next;
+			struct timeval ev_timeout;
+		} ev_io;
+
+		/* used by signal events */
+		struct {
+			TAILQ_ENTRY(event) ev_signal_next;
+			short ev_ncalls; //回调函数的调用次数
+			/* Allows deletes in callback */
+			short *ev_pncalls; //指向该事件的回调函数已经被调用的次数的指针
+		} ev_signal;
+	} _ev;
+
+	short ev_events; //要监听的事件类型。
+	short ev_res;		/* result passed to event callback */
+	short ev_flags;//标识该事件的状态，包括 EVLIST_INSERTED、EVLIST_ACTIVE、EVLIST_TIMEOUT 等
+	ev_uint8_t ev_pri;	/* smaller numbers are higher priority */
+	ev_uint8_t ev_closure;
+	struct timeval ev_timeout;//指定该事件的超时时间，用于在一定时间内等待该事件发生
+
+	/* allows us to adopt for different types of events */
+	void (*ev_callback)(evutil_socket_t, short, void *arg);//事件发生时要调用的回调函数
+	void *ev_arg;//传递给回调函数的参数
+};
+```
+```
 event_init()
 该函数会创建一个全局的事件处理器（event_base）对象，这个对象是事件处理的中心，所有的事件都将注册到这个event_base上
 ```
@@ -74,3 +116,13 @@ event_base_dispatch()
 ## 定时器事件
 ### 单个事件循环 [demo1](https://github.com/neilyoguo/libevent-use/tree/main/demo1)
 ### 多个事件循环 [demo2](https://github.com/neilyoguo/libevent-use/tree/main/demo2)
+### 也可以用 evtimer_set 创建一个事件[demo3](https://github.com/neilyoguo/libevent-use/tree/main/demo3)
+
+```
+evtimer_set是个宏定义，本质上还是event_set，只不过默认设置了fd（-1） 和 事件类型（0），在指定的时间后触发该事件，通过该函数设置的事件都不是持续性事件
+#define evtimer_set(ev, cb, arg)	event_set((ev), -1, 0, (cb), (arg))
+
+```
+## IO事件
+
+### 管道通信 [demo4](https://github.com/neilyoguo/libevent-use/tree/main/demo4)
