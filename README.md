@@ -161,7 +161,7 @@ evtimer_set是个宏定义，本质上还是event_set，只不过默认设置了
 管道通信 [demo4](https://github.com/neilyoguo/libevent-use/tree/main/demo4)
 
 ## 信号事件
-[demo5]()
+[demo5](https://github.com/neilyoguo/libevent-use/tree/main/demo5)
 
 ## TCP
 
@@ -248,7 +248,7 @@ struct bufferevent
 void bufferevent_free(struct bufferevent *bev)
 ```
 #### 设置回调函数
-bufferevent_setcb()函数修改bufferevent的一个或多个回调。当足够的数据被读取时调用读回调，当足够的数据被写入时调用写回调，当有事件发生时调用事件回调
+bufferevent_setcb()函数修改bufferevent的一个或多个回调。当数据被读取时调用读回调，当数据被写入时调用写回调，当有error事件发生时调用error回调
 
 #### 读写bufferevent
 首先要获取各自的输入输出缓冲区
@@ -260,7 +260,7 @@ struct evbuffer *bufferevent_get_output(struct bufferevent *bufev)
 ```
 此处需要通过evbuffer_get_length获取缓冲区大小，将缓冲区数据全部读出，否则设置读取的长度太小会导致有的数据遗留在缓冲区中
 size_t bufferevent_read(struct bufferevent *bufev, void *data, size_t size)
-读出后，数据将从缓冲区移除
+数据读出后，数据将从缓冲区移除
 
 ```
 写数据
@@ -268,6 +268,16 @@ size_t bufferevent_read(struct bufferevent *bufev, void *data, size_t size)
 size_t bufferevent_write(struct bufferevent *bufev, void *data, size_t size)
 ```
 
-[demo6]()
+具体实现[demo6](https://github.com/neilyoguo/libevent-use/tree/main/demo6)
 
+#### 设置bufferevent水位线
+
+```
+int bufferevent_setwatermark(struct bufferevent *bev, short events, size_t lowmark, size_t highmark)
+其中，`bev` 是一个 `bufferevent` 对象的指针，`events` 可以是 `EV_READ` 或 `EV_WRITE`，
+用于指定是设置输入水位线还是输出水位线。`lowmark` 是设置的低水位线，`highmark` 是设置的高水位线 ，单位是字节，如果不需要设置参数是0
+当缓冲区的数据量超出指定的高水位线时，Libevent 将停止读入或写出数据，数据会被阻塞在应用程序或操作系统的发送缓冲区中
+
+```
+ 设置读最低水位线为20个字节，当缓冲区 >= 20个字节时，才会触发回调，把数据全部读出来, 见[demo7](https://github.com/neilyoguo/libevent-use/tree/main/demo7)
 
