@@ -9,7 +9,7 @@
 
 void signal_cb(evutil_socket_t fd, short events, void *arg)
 {
-    std::cout << "signal is" << fd << std::endl;
+    std::cout << "signal is " << fd << std::endl;
 }
 
 int main(int argc , char *argv[])
@@ -24,5 +24,6 @@ int main(int argc , char *argv[])
 
     //开始监听事件
     event_base_dispatch(base);
+    
     return 0;
 }

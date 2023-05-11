@@ -36,8 +36,8 @@ make && make install
 让事件集合进入事件循环处理事件
 
 ```
+event 结构体原型
 ```
-
 struct event {
 	TAILQ_ENTRY(event) ev_active_next;
 	TAILQ_ENTRY(event) ev_next;
@@ -77,6 +77,39 @@ struct event {
 	void (*ev_callback)(evutil_socket_t, short, void *arg);//事件发生时要调用的回调函数
 	void *ev_arg;//传递给回调函数的参数
 };
+```
+event对象初始化有多种方式，但是本质上都是通过event_assign进行初始化的，如下：
+```
+直接通过event_assign 初始化
+int event_assign(struct event *ev, struct event_base *base, evutil_socket_t fd, short events, void (*callback)(evutil_socket_t, short, void *), void *arg)
+
+```
+```
+通过event_set初始化
+void event_set(struct event *ev, evutil_socket_t fd, short events,
+	  void (*callback)(evutil_socket_t, short, void *), void *arg)
+{
+	int r;
+	r = event_assign(ev, current_base, fd, events, callback, arg);
+	EVUTIL_ASSERT(r == 0);
+}
+```
+```
+通过event_new , 可以看到event_new是在堆上创建的，需要通过event_free进行释放
+struct event *
+event_new(struct event_base *base, evutil_socket_t fd, short events, void (*cb)(evutil_socket_t, short, void *), void *arg)
+{
+	struct event *ev;
+	ev = mm_malloc(sizeof(struct event));
+	if (ev == NULL)
+		return (NULL);
+	if (event_assign(ev, base, fd, events, cb, arg) < 0) {
+		mm_free(ev);
+		return (NULL);
+	}
+
+	return (ev);
+}
 ```
 ```
 event_init()
@@ -125,7 +158,116 @@ evtimer_set是个宏定义，本质上还是event_set，只不过默认设置了
 ```
 ## IO事件
 
-### 管道通信 [demo4](https://github.com/neilyoguo/libevent-use/tree/main/demo4)
+管道通信 [demo4](https://github.com/neilyoguo/libevent-use/tree/main/demo4)
 
 ## 信号事件
-### [demo5]()
+[demo5]()
+
+## TCP
+
+### 使用
+```
+初始化事件处理器集合 -> 
+创建一个监听器（listener）并绑定到指定的IP地址和端口上 -> 
+将链接事件注册到事件集合 -> 
+添加事件到事件处理器的事件队列中 ->  
+让事件集合进入事件循环处理事件
+
+```
+这里socket的create,bind,listen包括将accept事件注册添加到base集合中都是由evconnlistener_new_bind函数完成的
+调用链
+```
+evconnlistener_new_bind()
+	->socket()
+	->evutil_make_socket_nonblocking()->fcntl() 设置socket非阻塞
+	->bind()
+	->evconnlistener_new()->listen()
+						  ->event_assign()
+```
+```
+struct evconnlistener *evconnlistener_new_bind(struct event_base *base,
+    evconnlistener_cb cb, void *ptr, unsigned flags, int backlog,
+    const struct sockaddr *sa, int socklen)
+
+base：事件处理器event_base对象，用于接收新连接事件；
+cb：回调函数，当有新连接到达时，将被调用；
+ptr：传递给回调函数的参数；
+flags：监听器的选项，可以为LEV_OPT_LEAVE_SOCKETS_BLOCKING,LEV_OPT_CLOSE_ON_FREE等标志的组合；
+backlog：监听队列的长度，表示等待处理的最大连接数；
+		if (backlog > 0) {
+			if (listen(fd, backlog) < 0)
+				return NULL;
+		} else if (backlog < 0) {
+			if (listen(fd, 128) < 0)
+				return NULL;
+		}
+sa：指向要绑定的sockaddr结构体；
+socklen：sockaddr结构体的长度。
+
+```
+```
+当有连接时触发的回调函数
+void evconnlistener_cb(struct evconnlistener *listener, evutil_socket_t fd, struct sockaddr *sa, int socklen, void *user_data)
+
+listener：触发回调函数的evconnlistener对象；
+fd：新连接的描述符；
+sa：连接的sockaddr结构体；
+socklen：sockaddr结构体的长度；
+user_data：传递给evconnlistener_new_bind函数的ptr参数。
+
+```
+### socket数据读写
+
+#### 创建bufferent
+需要使用到基于socket的bufferevent，可以使用bufferevent_socket_new()函数创建一个基于套接字的bufferevent，函数原型如下
+
+```
+struct bufferevent *bufferevent_socket_new(struct event_base *base, evutil_socket_t fd, int options)
+base:是一个指向 `event_base` 类型的指针，表示要将新创建的缓冲区事件对象添加到哪个事件集合中
+fd：是一个类型为 `evutil_socket_t` 的整数，表示要关联的套接字文件描述符
+options：是要应用于新创建的缓冲区事件对象的选项。可以使用以下选项之一或多个：
+		`BEV_OPT_CLOSE_ON_FREE`：在销毁缓冲区事件对象时自动关闭关联的套接字。
+		`BEV_OPT_THREADSAFE`：启用多线程支持。
+		`BEV_OPT_DEFER_CALLBACKS`：延迟回调函数的执行。
+
+```
+```
+struct bufferevent 
+在这个事件对象中包含了各种数据结构和回调函数，用于管理缓冲区和事件
+比如可能会经常使用：
+    struct evbuffer *input;     	输入缓冲区 
+    struct evbuffer *output;    	输出缓冲区 
+    bufferevent_data_cb readcb; 	读回调函数 
+    bufferevent_data_cb writecb;	写回调函数 
+    bufferevent_event_cb errorcb;	错误回调函数 
+    void *cbarg;                	回调函数参数 
+
+```
+#### 释放bufferevent
+```
+void bufferevent_free(struct bufferevent *bev)
+```
+#### 设置回调函数
+bufferevent_setcb()函数修改bufferevent的一个或多个回调。当足够的数据被读取时调用读回调，当足够的数据被写入时调用写回调，当有事件发生时调用事件回调
+
+#### 读写bufferevent
+首先要获取各自的输入输出缓冲区
+```
+struct evbuffer *bufferevent_get_input(struct bufferevent *bufev)
+struct evbuffer *bufferevent_get_output(struct bufferevent *bufev)
+```
+读数据
+```
+此处需要通过evbuffer_get_length获取缓冲区大小，将缓冲区数据全部读出，否则设置读取的长度太小会导致有的数据遗留在缓冲区中
+size_t bufferevent_read(struct bufferevent *bufev, void *data, size_t size)
+读出后，数据将从缓冲区移除
+
+```
+写数据
+```
+size_t bufferevent_write(struct bufferevent *bufev, void *data, size_t size)
+```
+
+[demo6]()
+
+
