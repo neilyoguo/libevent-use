@@ -281,3 +281,44 @@ int bufferevent_setwatermark(struct bufferevent *bev, short events, size_t lowma
 ```
  设置读最低水位线为20个字节，当缓冲区 >= 20个字节时，才会触发回调，把数据全部读出来, 见[demo7](https://github.com/neilyoguo/libevent-use/tree/main/demo7)
 
+## http
+
+```
+初始化事件处理器集合 -> 
+创建一个 HTTP 服务器 -> 
+绑定端口与ip到该服务上 -> 
+让事件集合进入事件循环处理事件
+```
+```
+创建http 服务器
+struct evhttp *evhttp_new(struct event_base *base);
+```
+```
+绑定ip地址和端口到http服务上 ，0成功 -1失败
+int evhttp_bind_socket(struct evhttp *http, const char *address, ev_uint16_t port);
+```
+```
+设置 HTTP 服务器的通用回调函数
+void evhttp_set_gencb(struct evhttp *http, evhttp_cb cb, void *arg);
+```
+```
+为指定的 URI 设置回调
+void evhttp_set_cb(struct evhttp *http, const char *path, void (*cb)(struct evhttp_request *, void *), void *cb_arg);
+```
+```
+获取 HTTP 请求的 URI（Uniform Resource Identifier，统一资源标识符）
+const char* evhttp_request_get_uri(const struct evhttp_request* req);
+```
+```
+获取 HTTP 请求的类型（例如 GET、POST、HEAD 等）
+enum evhttp_cmd_type evhttp_request_get_command(const struct evhttp_request* req);
+返回值是一个 `enum evhttp_cmd_type` 类型的枚举值，表示 HTTP 请求的类型。常见的枚举值包括：
+- `EVHTTP_REQ_GET`: GET 方法
+- `EVHTTP_REQ_POST`: POST 方法
+- `EVHTTP_REQ_HEAD`: HEAD 方法
+- `EVHTTP_REQ_PUT`: PUT 方法
+- `EVHTTP_REQ_DELETE`: DELETE 方法
+- `EVHTTP_REQ_OPTIONS`: OPTIONS 方法
+
+```
+[demo8](https://github.com/neilyoguo/libevent-use/tree/main/demo8)
